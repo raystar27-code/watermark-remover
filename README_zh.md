@@ -58,6 +58,11 @@ python watermark_remover/skill.py /path/to/images --suffix _clean
 ## 测试
 
 ```bash
+# 测试图片处理
 export TEST_IMAGE_PATH="/path/to/sample_image.png"
 pytest tests/
+
+# 测试 PDF 处理（可选）
+# 将 PDF 文件放入文件夹后运行：
+python watermark_remover/skill.py /path/to/pdf_folder
 ```

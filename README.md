@@ -58,6 +58,11 @@ python watermark_remover/skill.py /path/to/images --suffix _clean
 ## Testing
 
 ```bash
+# Test image processing
 export TEST_IMAGE_PATH="/path/to/sample_image.png"
 pytest tests/
+
+# Test PDF processing (optional)
+# Put a PDF file in a folder and run:
+python watermark_remover/skill.py /path/to/pdf_folder
 ```
