@@ -1,6 +1,6 @@
 # Watermark Remover
 
-Remove NotebookLM watermarks from images using OCR detection and OpenCV inpainting.
+Remove NotebookLM watermarks from images or PDFs using OCR detection and OpenCV inpainting.
 
 [中文说明](README_zh.md)
 
@@ -21,10 +21,15 @@ Requires Tesseract OCR to be installed:
 python watermark_remover/skill.py <folder_path> [--suffix _no_watermark]
 ```
 
+## Supported Formats
+
+- **Images**: `.png`, `.jpg`, `.jpeg`, `.webp`
+- **PDF**: `.pdf` (each page is converted to image, then processed)
+
 ## Examples
 
 ```bash
-# Process all images in a folder
+# Process all images and PDFs in a folder
 python watermark_remover/skill.py /path/to/images
 
 # Custom output suffix
@@ -33,17 +38,22 @@ python watermark_remover/skill.py /path/to/images --suffix _clean
 
 ## How It Works
 
-1. Scans folder for images (.png, .jpg, .jpeg, .webp)
-2. Uses Tesseract OCR to detect "NotebookLM" text in bottom-right region
-3. Expands text bounding box to cover logo and frame
-4. Applies OpenCV Telea inpainting to fill watermark area
-5. Saves result as `<filename>_no_watermark.<ext>`
+1. Scans folder for images and PDFs
+2. **For images**: Directly process each image
+3. **For PDFs**: Convert each page to image (300 DPI), then process
+4. Uses Tesseract OCR to detect "NotebookLM" text in bottom-right region
+5. Expands text bounding box to cover logo and frame
+6. Applies OpenCV Telea inpainting to fill watermark area
+7. Saves result with suffix (default: `_no_watermark`)
 
 ## Output
 
-- Original images are preserved
-- Processed images saved with suffix (default: `_no_watermark`)
-- Example: `image01.png` -> `image01_no_watermark.png`
+- Original files are preserved
+- **Images**: `image01.png` -> `image01_no_watermark.png`
+- **PDFs**: Creates `<filename>_images/` folder with:
+  - `原文件名_page_001_no_watermark.png`
+  - `原文件名_page_002_no_watermark.png`
+  - ...
 
 ## Testing
 
