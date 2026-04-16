@@ -2,10 +2,12 @@
 
 Remove NotebookLM watermarks from images using OCR detection and OpenCV inpainting.
 
+[中文说明](README_zh.md)
+
 ## Installation
 
 ```bash
-pip install -r requirements.txt
+pip install -r watermark_remover/requirements.txt
 ```
 
 Requires Tesseract OCR to be installed:
@@ -16,17 +18,17 @@ Requires Tesseract OCR to be installed:
 ## Usage
 
 ```bash
-python skill.py <folder_path> [--suffix _no_watermark]
+python watermark_remover/skill.py <folder_path> [--suffix _no_watermark]
 ```
 
 ## Examples
 
 ```bash
 # Process all images in a folder
-python skill.py /path/to/images
+python watermark_remover/skill.py /path/to/images
 
 # Custom output suffix
-python skill.py /path/to/images --suffix _clean
+python watermark_remover/skill.py /path/to/images --suffix _clean
 ```
 
 ## How It Works
@@ -42,3 +44,10 @@ python skill.py /path/to/images --suffix _clean
 - Original images are preserved
 - Processed images saved with suffix (default: `_no_watermark`)
 - Example: `image01.png` -> `image01_no_watermark.png`
+
+## Testing
+
+```bash
+export TEST_IMAGE_PATH="/path/to/sample_image.png"
+pytest tests/
+```
