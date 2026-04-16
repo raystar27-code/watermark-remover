@@ -51,8 +51,8 @@ python watermark_remover/skill.py /path/to/images --suffix _clean
 - Original files are preserved
 - **Images**: `image01.png` -> `image01_no_watermark.png`
 - **PDFs**: Creates `<filename>_images/` folder with:
-  - `原文件名_page_001_no_watermark.png`
-  - `原文件名_page_002_no_watermark.png`
+  - `filename_page_001_no_watermark.png`
+  - `filename_page_002_no_watermark.png`
   - ...
 
 ## Testing
