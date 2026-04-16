@@ -1,5 +1,7 @@
 import argparse
 import sys
+import shutil
+import tempfile
 from pathlib import Path
 import cv2
 import numpy as np
@@ -85,24 +87,11 @@ def process_pdf_file(pdf_path, detector, restorer, output_suffix="_no_watermark"
             failed += 1
         Path(temp_path).unlink(missing_ok=True)
 
-    return True, f"{success} pages processed, {failed} failed"
+    return True, str(output_dir)
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Remove NotebookLM watermarks from images or PDFs"
-    )
-    parser.add_argument("folder", help="Folder containing images or PDFs to process")
-    parser.add_argument(
-        "--suffix", default="_no_watermark", help="Suffix for output files"
-    )
-    args = parser.parse_args()
-
-    folder = Path(args.folder)
-    if not folder.exists():
-        print(f"Error: Folder {folder} does not exist")
-        sys.exit(1)
-
+def process_local_folder(folder_path, detector, restorer, output_suffix):
+    folder = Path(folder_path)
     files = []
     for f in folder.iterdir():
         if (
@@ -113,13 +102,10 @@ def main():
 
     if not files:
         print(f"No images or PDFs found in {folder}")
-        sys.exit(0)
+        return 0, 0
 
     total = len(files)
     print(f"Found {total} file(s) to process\n")
-
-    detector = WatermarkDetector()
-    restorer = ImageRestorer()
 
     success = 0
     failed = 0
@@ -128,11 +114,11 @@ def main():
         try:
             if file_path.suffix.lower() in SUPPORTED_PDF_EXTENSIONS:
                 ok, result = process_pdf_file(
-                    file_path, detector, restorer, args.suffix
+                    file_path, detector, restorer, output_suffix
                 )
             else:
                 ok, result = process_image_file(
-                    file_path, detector, restorer, args.suffix
+                    file_path, detector, restorer, output_suffix
                 )
 
             if ok:
@@ -145,7 +131,132 @@ def main():
             print(f"[{idx}/{total}] ✗ Error: {file_path.name} ({e})")
             failed += 1
 
-    print(f"\nDone: {success}/{total} succeeded, {failed} failed")
+    return success, failed
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Remove NotebookLM watermarks from images or PDFs"
+    )
+    parser.add_argument("source", nargs="?", help="Local folder path")
+    parser.add_argument(
+        "--suffix", default="_no_watermark", help="Suffix for output files"
+    )
+    parser.add_argument(
+        "--source-type",
+        choices=["local", "google-drive"],
+        default="local",
+        help="Source type: local folder or Google Drive folder",
+    )
+    parser.add_argument(
+        "--gd-source",
+        help="Google Drive folder ID containing PDFs to process",
+    )
+    parser.add_argument(
+        "--gd-output",
+        help="Google Drive folder ID to upload results (default: same as --gd-source)",
+    )
+    parser.add_argument(
+        "--output",
+        choices=["local", "google-drive"],
+        default="local",
+        help="Output destination",
+    )
+    parser.add_argument(
+        "--cleanup", action="store_true", help="Clean up temporary files after upload"
+    )
+    args = parser.parse_args()
+
+    if args.source_type == "google-drive" and not args.gd_source:
+        parser.error("--gd-source is required when --source-type is google-drive")
+
+    temp_dir = None
+    try:
+        if args.source_type == "google-drive":
+            from cloud_storage import GoogleDriveManager
+
+            print("Connecting to Google Drive...")
+            drive = GoogleDriveManager()
+
+            source_folder = args.gd_output or args.gd_source
+            print(f"Listing PDFs in Google Drive folder: {source_folder}")
+            pdf_files = drive.list_pdfs(args.gd_source)
+            if not pdf_files:
+                print("No PDF files found in the specified folder")
+                sys.exit(0)
+
+            print(f"Found {len(pdf_files)} PDF(s)\n")
+
+            temp_dir = tempfile.mkdtemp()
+            print(f"Downloading to temporary folder: {temp_dir}\n")
+
+            success = 0
+            failed = 0
+
+            for idx, pdf_file in enumerate(pdf_files, 1):
+                try:
+                    print(f"[{idx}/{len(pdf_files)}] Downloading: {pdf_file['name']}")
+                    local_pdf = drive.download_file(pdf_file["id"])
+                    print(f"[{idx}/{len(pdf_files)}] Processing: {pdf_file['name']}")
+
+                    temp_pdf_path = Path(temp_dir) / pdf_file["name"]
+                    shutil.move(local_pdf, str(temp_pdf_path))
+
+                    detector = WatermarkDetector()
+                    restorer = ImageRestorer()
+                    ok, result = process_pdf_file(
+                        temp_pdf_path, detector, restorer, args.suffix
+                    )
+
+                    if ok:
+                        print(
+                            f"[{idx}/{len(pdf_files)}] ✓ Processed: {pdf_file['name']}"
+                        )
+                        success += 1
+                    else:
+                        print(
+                            f"[{idx}/{len(pdf_files)}] ✗ Skipped: {pdf_file['name']} ({result})"
+                        )
+                        failed += 1
+                except Exception as e:
+                    print(f"[{idx}/{len(pdf_files)}] ✗ Error: {pdf_file['name']} ({e})")
+                    failed += 1
+
+            print(
+                f"\nProcessing complete: {success}/{len(pdf_files)} succeeded, {failed} failed"
+            )
+
+            if args.output == "google-drive" and success > 0:
+                print("\nUploading results to Google Drive...")
+                result_folder = (
+                    Path(temp_dir).parent / f"watermark_removed_{Path(temp_dir).name}"
+                )
+                result_folder.mkdir(exist_ok=True)
+                for item in Path(temp_dir).iterdir():
+                    if item.is_dir():
+                        shutil.move(str(item), str(result_folder / item.name))
+                upload_folder_id = args.gd_output or args.gd_source
+                folder_id, folder_link = drive.upload_folder(
+                    result_folder, upload_folder_id
+                )
+                print(f"Results uploaded: {folder_link}")
+                if args.cleanup:
+                    shutil.rmtree(result_folder)
+
+        else:
+            if not args.source:
+                parser.error("source folder is required for local mode")
+            detector = WatermarkDetector()
+            restorer = ImageRestorer()
+            success, failed = process_local_folder(
+                args.source, detector, restorer, args.suffix
+            )
+
+        print(f"\nDone: {success}/{success + failed} succeeded, {failed} failed")
+
+    finally:
+        if temp_dir and args.output == "local":
+            print(f"\nResults saved in: {temp_dir}")
 
 
 if __name__ == "__main__":

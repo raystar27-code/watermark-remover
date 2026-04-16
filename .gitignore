@@ -23,3 +23,7 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Google Drive API credentials (NEVER commit these)
+credentials.json
+token.json

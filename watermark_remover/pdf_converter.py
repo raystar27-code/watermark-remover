@@ -13,7 +13,7 @@ class PDFConverter:
         doc = fitz.open(str(pdf_path))
         for page_num in range(len(doc)):
             page = doc[page_num]
-            mat = fitz.Matrix(dpi / 72, dpi / 72)
+            mat = fitz.Matrix(self.dpi / 72, self.dpi / 72)
             pix = page.get_pixmap(matrix=mat)
             img_data = np.frombuffer(pix.samples, dtype=np.uint8)
             img_data = img_data.reshape(pix.height, pix.width, pix.n)
