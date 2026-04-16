@@ -63,13 +63,14 @@ def process_pdf_file(pdf_path, detector, restorer, output_suffix="_no_watermark"
 
     base_name = pdf_path.stem
     output_dir = pdf_path.parent / f"{base_name}_images"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     success = 0
     failed = 0
     saved_paths = []
 
     for i, img in enumerate(images):
-        temp_path = f"{output_dir / base_name}_temp_page_{i + 1:03d}.png"
+        temp_path = str(output_dir / f"{base_name}_temp_page_{i + 1:03d}.png")
         cv2.imwrite(temp_path, img)
         ok, result = process_single_image(
             img, temp_path, detector, restorer, output_suffix
