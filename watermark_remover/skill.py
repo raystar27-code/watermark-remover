@@ -5,7 +5,9 @@ import tempfile
 from pathlib import Path
 import cv2
 import numpy as np
+import fitz
 
+import config
 from detector import WatermarkDetector
 from restorer import ImageRestorer
 from pdf_converter import PDFConverter
@@ -53,8 +55,8 @@ def process_image_file(image_path, detector, restorer, output_suffix="_no_waterm
     return True, str(output_path)
 
 
-def process_pdf_file(pdf_path, detector, restorer, output_suffix="_no_watermark"):
-    converter = PDFConverter()
+def process_pdf_file(pdf_path, detector, restorer, output_suffix="_no_watermark", memory_mode="high_quality"):
+    converter = PDFConverter(dpi=config.PDF_DPI, memory_mode=memory_mode)
     try:
         images = converter.pdf_to_images(str(pdf_path))
     except Exception as e:
@@ -90,7 +92,53 @@ def process_pdf_file(pdf_path, detector, restorer, output_suffix="_no_watermark"
     return True, str(output_dir)
 
 
-def process_local_folder(folder_path, detector, restorer, output_suffix):
+def process_pdf_file_streaming(pdf_path, detector, restorer, output_suffix="_no_watermark", memory_mode="efficient"):
+    converter = PDFConverter(dpi=config.PDF_DPI, memory_mode=memory_mode)
+    base_name = pdf_path.stem
+    output_dir = pdf_path.parent / f"{base_name}_images"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    total_pages = 0
+    try:
+        doc = fitz.open(str(pdf_path))
+        total_pages = len(doc)
+        doc.close()
+    except Exception as e:
+        return False, f"Failed to read PDF: {e}"
+
+    if total_pages == 0:
+        return False, "PDF has no pages"
+
+    success = 0
+    failed = 0
+    page_num = 0
+
+    try:
+        for img in converter.pdf_to_images_streaming(str(pdf_path)):
+            page_num += 1
+            temp_path = str(output_dir / f"{base_name}_temp_page_{page_num:03d}.png")
+            cv2.imwrite(temp_path, img)
+            del img
+
+            ok, result = process_single_image(
+                cv2.imread(temp_path), temp_path, detector, restorer, output_suffix
+            )
+            if ok:
+                output_path = output_dir / f"{base_name}_page_{page_num:03d}{output_suffix}.png"
+                cv2.imwrite(str(output_path), result)
+                success += 1
+            else:
+                failed += 1
+            Path(temp_path).unlink(missing_ok=True)
+            del result
+
+    except Exception as e:
+        return False, f"Failed to process PDF: {e}"
+
+    return True, str(output_dir)
+
+
+def process_local_folder(folder_path, detector, restorer, output_suffix, memory_mode="high_quality"):
     folder = Path(folder_path)
     files = []
     for f in folder.iterdir():
@@ -113,9 +161,14 @@ def process_local_folder(folder_path, detector, restorer, output_suffix):
     for idx, file_path in enumerate(files, 1):
         try:
             if file_path.suffix.lower() in SUPPORTED_PDF_EXTENSIONS:
-                ok, result = process_pdf_file(
-                    file_path, detector, restorer, output_suffix
-                )
+                if memory_mode == "efficient":
+                    ok, result = process_pdf_file_streaming(
+                        file_path, detector, restorer, output_suffix, memory_mode
+                    )
+                else:
+                    ok, result = process_pdf_file(
+                        file_path, detector, restorer, output_suffix, memory_mode
+                    )
             else:
                 ok, result = process_image_file(
                     file_path, detector, restorer, output_suffix
@@ -165,10 +218,21 @@ def main():
     parser.add_argument(
         "--cleanup", action="store_true", help="Clean up temporary files after upload"
     )
+    parser.add_argument(
+        "--memory-mode",
+        choices=["high_quality", "efficient"],
+        default="high_quality",
+        help="Memory mode: high_quality (300 DPI, all pages in memory) or efficient (150 DPI, streaming, low memory)",
+    )
     args = parser.parse_args()
 
     if args.source_type == "google-drive" and not args.gd_source:
         parser.error("--gd-source is required when --source-type is google-drive")
+
+    memory_mode = args.memory_mode
+    if args.source_type == "google-drive" and memory_mode == "high_quality":
+        memory_mode = "efficient"
+        print("Note: Google Drive mode automatically uses efficient memory mode\n")
 
     temp_dir = None
     try:
@@ -204,8 +268,8 @@ def main():
 
                     detector = WatermarkDetector()
                     restorer = ImageRestorer()
-                    ok, result = process_pdf_file(
-                        temp_pdf_path, detector, restorer, args.suffix
+                    ok, result = process_pdf_file_streaming(
+                        temp_pdf_path, detector, restorer, args.suffix, memory_mode
                     )
 
                     if ok:
@@ -249,7 +313,7 @@ def main():
             detector = WatermarkDetector()
             restorer = ImageRestorer()
             success, failed = process_local_folder(
-                args.source, detector, restorer, args.suffix
+                args.source, detector, restorer, args.suffix, memory_mode
             )
 
         print(f"\nDone: {success}/{success + failed} succeeded, {failed} failed")

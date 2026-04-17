@@ -1,10 +1,12 @@
 import cv2
 import numpy as np
 
+import config
+
 
 class ImageRestorer:
-    def __init__(self, method="telea"):
-        self.method = method
+    def __init__(self, method=None):
+        self.method = method or config.INPAINT_METHOD
 
     def restore(self, image, mask):
         result = cv2.inpaint(image, mask, 3, self._get_flags())

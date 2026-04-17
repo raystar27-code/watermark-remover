@@ -15,6 +15,24 @@ pip install -r watermark_remover/requirements.txt
 - Ubuntu: `sudo apt-get install tesseract-ocr`
 - Windows: 从 https://github.com/UB-Mannheim/tesseract/wiki 下载
 
+## 配置
+
+所有配置参数都在 `watermark_remover/config.py` 中。主要选项：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `PDF_DPI` | 300 | PDF 转换质量（内存受限服务器建议用 150） |
+| `MEMORY_MODE` | "high_quality" | "high_quality" 或 "efficient" |
+| `SEARCH_REGION_RATIO` | 0.15 | 右下角搜索区域比例 |
+| `EXPAND_RATIO` | 2.5 | 水印边界框扩展倍数 |
+| `INPAINT_METHOD` | "telea" | 图像修复算法 |
+
+2GB 内存服务器建议配置：
+```python
+PDF_DPI = 150
+MEMORY_MODE = "efficient"
+```
+
 ## Google Drive 配置（可选）
 
 1. 进入 [Google Cloud Console](https://console.cloud.google.com/)
@@ -31,8 +49,11 @@ pip install -r watermark_remover/requirements.txt
 ## 使用方法
 
 ```bash
-# 本地模式（处理本地文件夹中的文件）
+# 本地模式（处理本地文件夹中的文件，高质量）
 python watermark_remover/skill.py /path/to/folder --source-type local
+
+# 本地模式（高效模式，内存占用低，适合内存受限的服务器）
+python watermark_remover/skill.py /path/to/folder --source-type local --memory-mode efficient
 
 # Google Drive 模式（从 GD 下载，处理后保存到本地）
 python watermark_remover/skill.py --source-type google-drive \
@@ -56,17 +77,33 @@ python watermark_remover/skill.py --source-type google-drive \
 | `--gd-output` | Google Drive 输出文件夹 ID（默认: 与 `--gd-source` 相同） |
 | `--output` | 输出位置: `local` 或 `google-drive` |
 | `--cleanup` | 上传后删除本地临时文件 |
+| `--memory-mode` | 内存模式: `high_quality`（300 DPI，较高内存占用）或 `efficient`（150 DPI，流式处理，低内存） |
 
 ## 支持格式
 
 - **图片**: `.png`, `.jpg`, `.jpeg`, `.webp`
 - **PDF**: `.pdf`（每页转换为图片后处理）
 
+## 内存模式
+
+| 模式 | DPI | 内存占用 | 适用场景 |
+|------|-----|----------|----------|
+| `high_quality` | 300 | 较高 | 本地处理，追求高质量 |
+| `efficient` | 150 | 低 | 内存受限的服务器（如 2GB RAM） |
+
+### 内存使用建议
+
+- **2GB 内存服务器**: 使用 `--memory-mode efficient`，逐页处理 PDF
+- **本地桌面**: 使用默认的 `high_quality`，获得更好的图片质量
+
 ## 示例
 
 ```bash
-# 处理本地文件夹
+# 处理本地文件夹（高质量模式，300 DPI）
 python watermark_remover/skill.py /path/to/images --source-type local
+
+# 处理本地文件夹（高效模式，150 DPI，低内存）
+python watermark_remover/skill.py /path/to/images --source-type local --memory-mode efficient
 
 # 自定义输出后缀
 python watermark_remover/skill.py /path/to/images --suffix _clean
@@ -87,7 +124,7 @@ python watermark_remover/skill.py --source-type google-drive \
 
 1. 扫描文件夹中的图片和 PDF
 2. **对于图片**：直接处理每张图片
-3. **对于 PDF**：将每页转换为图片（300 DPI）后处理
+3. **对于 PDF**：将每页转换为图片（150/300 DPI，取决于内存模式）后处理
 4. 使用 Tesseract OCR 在右下角区域检测 "NotebookLM" 文字
 5. 扩展文字边界框以覆盖 logo 和边框
 6. 使用 OpenCV Telea 图像修复算法填充水印区域

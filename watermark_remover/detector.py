@@ -1,14 +1,13 @@
 import cv2
 import pytesseract
 import numpy as np
-from PIL import Image
+
+import config
 
 
 class WatermarkDetector:
-    SEARCH_REGION_RATIO = 0.15
-
     def __init__(self, search_ratio=None):
-        self.search_ratio = search_ratio or self.SEARCH_REGION_RATIO
+        self.search_ratio = search_ratio or config.SEARCH_REGION_RATIO
 
     def detect(self, image_path):
         img = cv2.imread(str(image_path))
@@ -48,7 +47,8 @@ class WatermarkDetector:
         best = max(notebooklm_boxes, key=lambda b: b["confidence"])
         return best
 
-    def expand_bbox(self, bbox_info, image_height, image_width, expand_ratio=2.5):
+    def expand_bbox(self, bbox_info, image_height, image_width, expand_ratio=None):
+        expand_ratio = expand_ratio or config.EXPAND_RATIO
         x, y, w, h = bbox_info["bbox"]
 
         new_w = int(w * expand_ratio)
